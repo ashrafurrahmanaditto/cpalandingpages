@@ -1,63 +1,56 @@
+```html
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Not Found — Redirecting...</title>
+  <title>Not Found — Redirecting…</title>
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
-    .box{max-width:720px;padding:20px;text-align:center}
+    body{font-family:system-ui,Arial;display:flex;align-items:center;justify-content:center;height:100vh;margin:0}
+    .box{text-align:center;max-width:600px;padding:20px}
     small{color:#666}
   </style>
 </head>
 <body>
   <div class="box">
-    <h2>Page not found</h2>
-    <p>Redirecting — if your browser doesn't redirect automatically, <a id="link" href="#">click here</a>.</p>
+    <h2>404 — Page Not Found</h2>
+    <p>Redirecting you… If nothing happens, <a id="link" href="#">click here</a>.</p>
     <small id="info"></small>
   </div>
 
   <script>
-    // === CONFIGURE THIS: change only 'TARGET_BASE' to a domain you control/trust ===
-    const TARGET_BASE = 'https://www.cpalandingpage.site'; // safe placeholder; replace with your own domain
-    const UID = '475231'; // optional: include if you want to embed params
-    const WID = '717029';
+    // === CONFIGURE ===
+    const UID = '475231';   // your uid
+    const WID = '717029';   // your wid
 
-    // Generate a random token / timestamp to make each URL unique
-    function randomToken(len = 12) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-      let s = '';
-      for (let i = 0; i < len; i++) s += chars.charAt(Math.floor(Math.random() * chars.length));
-      return s;
+    // Encode like show.js does (base64 of page URL)
+    function pcBase64Encode(input) {
+      try {
+        return btoa(unescape(encodeURIComponent(input || '')));
+      } catch (e) {
+        return btoa(input || '');
+      }
     }
 
-    // Build the redirect URL. Customize query params as needed.
     function makeRedirectUrl() {
-      const token = randomToken(10);
-      const ts = Date.now();
-      const params = new URLSearchParams({
-        uid: UID,
-        wid: WID,
-        t: ts,
-        r: token
-      });
-      return TARGET_BASE + '?' + params.toString();
+      const pageUrl = window.location.href;
+      const encoded = pcBase64Encode(pageUrl);
+      const cb = Math.floor(Math.random() * 1e16);
+      return 'http://p.pcdelv.com/go/' + UID + '/' + WID + '/' + encoded + '?cb=' + cb;
     }
 
     (function(){
       const url = makeRedirectUrl();
-      const info = document.getElementById('info');
       const link = document.getElementById('link');
+      const info = document.getElementById('info');
 
       link.href = url;
       info.textContent = 'Redirect target: ' + url;
 
-      // Delay slightly so user sees what's happening, then redirect
       setTimeout(()=> {
-        // Use replace() to avoid adding the 404 page to history
         window.location.replace(url);
-      }, 600);
+      }, 500);
     })();
   </script>
 </body>
 </html>
+```
