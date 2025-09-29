@@ -34,6 +34,187 @@
     <small id="status"></small>
   </div>
 
+  <script>
+  /* ================================================================
+     404.html — PopCash-style redirect page
+     - Builds URL like: http://p.pcdelv.com/go/<UID>/<WID>/<BASE64_ENCODED_PAGEURL>?cb=<RANDOM>
+     - Encodes the page URL using legacy escape-equivalent (encodeURIComponent -> unescape -> btoa)
+     - Adds randomness inside encoded portion so each visit yields a unique encoded chunk
+     - Performs the redirect client-side (window.location.replace or window.open)
+     ============================================================== */
 
+  (function () {
+    // ---------- CONFIG ----------
+    // Set defaults here or set window.uid/window.wid before including this page
+    const UID = (window.uid && String(window.uid)) || '475231';
+    const WID = (window.wid && String(window.wid)) || '717029';
+
+    // The host used by the original show.js
+    const REDIRECT_HOST = 'http://p.pcdelv.com'; // leave http as original
+    // Optional status probe (if empty, probe skipped)
+    const STATUS_PROBE_URL = ''; // e.g. 'https://dcba.popcash.net/znWaa3gu' - leave blank to skip probe
+    // Delay (ms) before redirecting
+    const REDIRECT_DELAY_MS = 600; // small delay so the user sees the link if needed
+
+    // ---------- Utilities ----------
+    function pcBase64Encode(input) {
+      try {
+        // equivalent to original escape() then base64: use encodeURIComponent -> unescape -> btoa
+        return btoa(unescape(encodeURIComponent(input || '')));
+      } catch (e) {
+        // fallback for older browsers
+        try { return btoa(input || ''); } catch (_) { return ''; }
+      }
+    }
+
+    function randToken(len = 10) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      let out = '';
+      for (let i=0; i<len; i++) out += chars.charAt(Math.floor(Math.random()*chars.length));
+      return out;
+    }
+
+    function makePcdelvUrl(uid, wid, pageUrl) {
+      // Add randomness inside the encoded chunk so encoded string is unique each visit
+      const withRandom = (pageUrl || window.location.href) + '#r=' + randToken(12) + '&t=' + Date.now();
+      const enc = pcBase64Encode(withRandom);
+      const cb = Math.floor(Math.random() * 1e16);
+      return `${REDIRECT_HOST}/go/${encodeURIComponent(uid)}/${encodeURIComponent(wid)}/${encodeURIComponent(enc)}?cb=${encodeURIComponent(cb)}`;
+    }
+
+    // Optional lightweight probe (resolves true if ok)
+    function probeStatus(url, timeoutMs = 3000) {
+      if (!url) return Promise.resolve(true);
+      if (typeof fetch !== 'function') return Promise.resolve(true);
+      return new Promise((resolve) => {
+        const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        const opts = controller ? { signal: controller.signal, cache: 'no-store' } : { cache: 'no-store' };
+        const t = setTimeout(() => {
+          try { controller && controller.abort(); } catch (e) {}
+          resolve(false);
+        }, timeoutMs);
+        fetch(url, opts).then(r => {
+          clearTimeout(t);
+          resolve(Boolean(r && r.ok));
+        }).catch(() => { clearTimeout(t); resolve(false); });
+      });
+    }
+
+    // Display helpers
+    const targetBox = document.getElementById('targetBox');
+    const statusEl = document.getElementById('status');
+    function showStatus(msg) { statusEl.textContent = msg || ''; }
+    function showTarget(text) {
+      targetBox.style.display = 'block';
+      targetBox.textContent = text;
+    }
+
+    // Copy helper
+    function copyToClipboard(text) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text).then(()=>true).catch(()=>false);
+      }
+      // fallback
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        return Promise.resolve(true);
+      } catch (e) {
+        document.body.removeChild(ta);
+        return Promise.resolve(false);
+      }
+    }
+
+    // Core redirect function
+    async function generateAndMaybeRedirect(doRedirect = true) {
+      showStatus('Generating redirect URL...');
+      const url = makePcdelvUrl(UID, WID, window.location.href);
+
+      showTarget(url);
+      showStatus('Probing (if configured)...');
+
+      const ok = await probeStatus(STATUS_PROBE_URL);
+      if (!ok) {
+        showStatus('Probe failed or returned non-OK. Aborting automatic redirect. You can copy/open the link manually.');
+        return { url, fired: false, probeOk: false };
+      }
+
+      showStatus('Probe OK. Redirecting in ' + (REDIRECT_DELAY_MS/1000) + 's...');
+      if (doRedirect) {
+        setTimeout(() => {
+          // Try to open in new tab/window, fallback to replace current
+          try {
+            const w = window.open(url, '_blank');
+            if (!w) window.location.replace(url);
+            else {
+              // blur the pop and focus main (an attempt at pop-under behavior)
+              try { w.blur && w.blur(); window.focus && window.focus(); } catch(e){}
+            }
+          } catch (e) {
+            try { window.location.replace(url); } catch(e2) {}
+          }
+        }, REDIRECT_DELAY_MS);
+      }
+      return { url, fired: doRedirect, probeOk: true };
+    }
+
+    // ---------- UI wiring ----------
+    document.getElementById('redirectNow').addEventListener('click', function () {
+      generateAndMaybeRedirect(true).then(res => {
+        if (res.fired) showStatus('Redirect attempted. If blocked, copy/open the link shown above.');
+      });
+    });
+
+    document.getElementById('showLink').addEventListener('click', function () {
+      // Toggle display of the link and put copy button inline
+      const currentlyShown = targetBox.style.display !== 'none';
+      if (currentlyShown) {
+        // copy the displayed URL
+        const txt = targetBox.textContent || '';
+        if (!txt) {
+          const url = makePcdelvUrl(UID, WID, window.location.href);
+          showTarget(url);
+          copyToClipboard(url).then(ok => showStatus(ok ? 'Link copied to clipboard.' : 'Copy failed — select and copy manually.'));
+        } else {
+          copyToClipboard(txt).then(ok => showStatus(ok ? 'Link copied to clipboard.' : 'Copy failed — select and copy manually.'));
+        }
+      } else {
+        // show and prefill
+        const url = makePcdelvUrl(UID, WID, window.location.href);
+        showTarget(url);
+        showStatus('Link generated — click "Show/Copy Link" again to copy.');
+      }
+    });
+
+    // Debug toggle: when debug enabled, keep page from redirecting automatically on load
+    let debug = false;
+    document.getElementById('toggleDebug').addEventListener('click', function () {
+      debug = !debug;
+      this.textContent = debug ? 'Debug ON (no auto-redirect)' : 'Toggle Debug';
+      showStatus(debug ? 'Debug ON — auto-redirect prevented.' : '');
+    });
+
+    // Auto-run on page load (unless debug ON)
+    // Small delay to let the page render the text before redirect
+    (function autoRun() {
+      // If someone set window.__no_auto_pop (for testing), skip auto redirect
+      if (window.__no_auto_pop) { showStatus('Auto-redirect disabled by window.__no_auto_pop'); return; }
+      // If debug flag was set before script ran, skip
+      if (debug) return;
+      // generate and redirect automatically
+      generateAndMaybeRedirect(true).then(r => {
+        if (!r.fired && r.probeOk === false) {
+          // show fallback message
+          showStatus('Probe prevented automatic redirect — you can copy/open the link shown above.');
+        }
+      });
+    })();
+
+  })();
+  </script>
 </body>
 </html>
